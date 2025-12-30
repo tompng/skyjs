@@ -17,7 +17,8 @@ class Renderer {
     this.ctx.translate(this.width / 2, this.height / 2)
     this.ctx.scale(size / 2, size / 2)
   }
-  renderTexture(p, r) {
+  renderTexture(p, r, texture) {
+    texture = texture || textures[textures.length * Math.random() | 0]
     // p: { x, y, xx, yy, xy } (center and covariance)
     // transform matrix = [[a, c], [c, b]]
     // xx = aa+cc
@@ -35,13 +36,15 @@ class Renderer {
     const a = Math.sqrt(p.xx - c*c)
     const b = Math.sqrt(p.yy - c*c)
     if (isNaN(a) || isNaN(b)) return
-    const texture = textures[textures.length * Math.random() | 0]
     this.ctx.save()
     const mid = c * c + (a * a + b * b) / 2
     this.ctx.globalAlpha /= (1 + mid)
     this.ctx.transform(a, c, c, b, p.x, p.y)
     this.ctx.drawImage(texture, -r, -r, 2*r, 2*r)
     this.ctx.restore()
+  }
+  clear() {
+    this.ctx.clearRect(-1, -1, 2, 2)
   }
 }
 
@@ -78,7 +81,7 @@ function normalizeParticle(p) {
   p.xy *= scale
 }
 
-for (let i = 0; i < 100; i++) {
+function update() {
   for (const p of particles) {
     const v = Velocity(p.x, p.y)
     // grad of v
@@ -109,8 +112,19 @@ for (let i = 0; i < 100; i++) {
   }
 }
 
-for (const p of particles) {
-  renderer.ctx.globalAlpha = 0.1
-  normalizeParticle(p)
-  renderer.renderTexture(p, 0.1, p.xx, p.yy, p.xy)
+for (let i = 0; i < 100; i++) update()
+
+function draw() {
+  renderer.clear()
+  let i = 0
+  for (const p of particles) {
+    renderer.ctx.globalAlpha = 0.1
+    normalizeParticle(p)
+    renderer.renderTexture(p, 0.1, textures[i % textures.length])
+    i++
+  }
 }
+draw()
+setInterval(() => {
+  update(); draw()
+}, 10)
