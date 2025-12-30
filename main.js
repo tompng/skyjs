@@ -49,7 +49,6 @@ class Renderer {
 }
 
 const canvas = document.createElement('canvas')
-canvas.style.background = 'black'
 canvas.width = canvas.height = 512
 document.body.appendChild(canvas)
 const renderer = new Renderer(canvas)
