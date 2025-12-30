@@ -36,8 +36,7 @@ class Renderer {
     const b = Math.sqrt(p.yy - c*c)
     if (isNaN(a) || isNaN(b)) return
     this.ctx.save()
-    const mid = c * c + (a * a + b * b) / 2
-    this.ctx.globalAlpha /= (1 + mid)
+    this.ctx.globalAlpha /= 1 + (p.xx + p.yy) * 0.1
     this.ctx.transform(a, c, c, b, p.x, p.y)
     this.ctx.drawImage(texture, -r, -r, 2*r, 2*r)
     this.ctx.restore()
@@ -57,6 +56,8 @@ for (let i = 0; i < 1000; i++) {
   particles.push({
     x: -0.5 + Math.random(),
     y: -0.5 + 0.5*Math.random(),
+    // x: -0.5 + 1 * Math.floor(i / 32) / 32,
+    // y: -0.5 + 1 * Math.floor(i % 32) / 32,
     xx: 1,
     yy: 1,
     xy: 0
@@ -79,6 +80,25 @@ function normalizeParticle(p) {
   p.xy *= scale
 }
 
+// Normalize level 2. Limit the eccentricity.
+function normalizeParticle2(p) {
+  normalizeParticle(p)
+  const { xx, yy, xy } = p
+  const len = xx * xx + yy * yy // long + short
+  const maxLen = 4
+  if (len > maxLen) {
+    // det2 = (xx+add)*(yy+add)-xy*xy
+    // (xx+z)**2 + (yy+z)**2 = maxLen * det
+    const a = maxLen - 2
+    const b = (maxLen - 2) * (xx + yy)
+    const c = maxLen * (xx * yy - xy * xy) - xx * xx - yy * yy
+    const add = (-b + Math.sqrt(b * b - 4 * a * c)) / 2 / a
+    p.xx += add
+    p.yy += add
+    normalizeParticle(p)
+  }
+}
+
 function update() {
   for (const p of particles) {
     const v = Velocity(p.x, p.y)
@@ -89,12 +109,10 @@ function update() {
     const vxm = Velocity(p.x - delta, p.y)
     const vyp = Velocity(p.x, p.y + delta)
     const vym = Velocity(p.x, p.y - delta)
-
-    const a = 0.5 // TODO: find the reason
-    const fxx = 1 + (vxp.x - vxm.x) / 2 / delta * vscale * a
-    const fxy = (vyp.x - vym.x) / 2 / delta * vscale * a
-    const fyx = (vxp.y - vxm.y) / 2 / delta * vscale * a
-    const fyy = 1 + (vyp.y - vym.y) / 2 / delta * vscale * a
+    const fxx = 1 + (vxp.x - vxm.x) / 2 / delta * vscale
+    const fxy = (vyp.x - vym.x) / 2 / delta * vscale
+    const fyx = (vxp.y - vxm.y) / 2 / delta * vscale
+    const fyy = 1 + (vyp.y - vym.y) / 2 / delta * vscale
     // Transform:
     // x2 = fxx*x + fxy*y
     // y2 = fyx*x + fyy*y
@@ -117,7 +135,7 @@ function draw() {
   let i = 0
   for (const p of particles) {
     renderer.ctx.globalAlpha = 0.1
-    normalizeParticle(p)
+    normalizeParticle2(p)
     renderer.renderTexture(p, 0.1, textures[i % textures.length])
     i++
   }
