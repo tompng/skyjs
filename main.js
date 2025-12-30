@@ -47,6 +47,7 @@ class Renderer {
 }
 
 const canvas = document.createElement('canvas')
+canvas.style.display = 'block'
 canvas.width = canvas.height = 512
 document.body.appendChild(canvas)
 const renderer = new Renderer(canvas)
@@ -64,7 +65,20 @@ for (let i = 0; i < 1000; i++) {
   })
 }
 
+const vortexCenter = { x: 0, y: 0 }
+const eventHandler = (e) => {
+  const rect = canvas.getBoundingClientRect()
+  const x = 2 * (e.clientX - rect.left) / rect.width - 1
+  const y = 2 * (e.clientY - rect.top) / rect.height - 1
+  vortexCenter.x = Math.min(Math.max(-0.9, x), 0.9)
+  vortexCenter.y = Math.min(Math.max(-0.9, y), 0.9)
+}
+document.addEventListener('pointermove', eventHandler)
+document.addEventListener('pointerdown', eventHandler)
+
 function Velocity(x, y) {
+  x -= vortexCenter.x
+  y -= vortexCenter.y
   const r = x * x + y * y
   const v = 1 / (0.5 + r) / 2
   return { x: -y / r * v, y: x / r * v }
