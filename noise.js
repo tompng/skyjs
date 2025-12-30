@@ -96,10 +96,10 @@ function generateNoiseTexture(size) {
       let v = 256 * (noise[y][x]* 1.2 - 0.2) * (r2 > 1 ? 0 : (1 - r2)**2)
       if (v < 0) v = 0
       if (v > 255) v = 255
-      data[index] = v
-      data[index + 1] = v
-      data[index + 2] = v
-      data[index + 3] = 255
+      data[index] = 255
+      data[index + 1] = 255
+      data[index + 2] = 255
+      data[index + 3] = v
     }
   }
   ctx.putImageData(imageData, 0, 0)
