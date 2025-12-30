@@ -26,9 +26,8 @@ class Renderer {
     // xy = ac+bc
     // solve for a, b, c
 
-    // det = xx*yy-xy*xy = aabb+cccc-2abcc = (ab-cc)**2
+    // det = xx*yy-xy*xy = (aa+cc)(bb+cc)-(ac+bc)**2 = aabb+cccc-2abcc = (ab-cc)**2
     // trace = xx+yy = aa+bb+2cc
-    // det = xx*yy - xy*xy = (aa+cc)(bb+cc)-(ac+bc)(ac+bc) = ab(b+a-2c)c + c^2
     const trace = p.xx + p.yy
     const det = p.xx * p.yy - p.xy * p.xy
     const a_b = Math.sqrt(trace + 2 * Math.sqrt(det))
