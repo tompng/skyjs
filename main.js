@@ -57,11 +57,13 @@ for (let i = 0; i < 1000; i++) {
   particles.push({
     x: -0.5 + Math.random(),
     y: -0.5 + 0.5*Math.random(),
-    // x: -0.5 + 1 * Math.floor(i / 32) / 32,
-    // y: -0.5 + 1 * Math.floor(i % 32) / 32,
+    z: -0.5 + 0.5*Math.random(),
     xx: 1,
     yy: 1,
-    xy: 0
+    zz: 1,
+    xy: 0,
+    yz: 0,
+    zx: 0
   })
 }
 
@@ -76,69 +78,87 @@ const eventHandler = (e) => {
 document.addEventListener('pointermove', eventHandler)
 document.addEventListener('pointerdown', eventHandler)
 
-function Velocity(x, y) {
+function Velocity(x, y, z) {
+  const r = x * x + y * y + z * z
+  let vx = 0
+  let vy = z / (0.5 + r) / 2 / r
+  let vz = -y / (0.5 + r) / 2 / r
   x -= vortexCenter.x
   y -= vortexCenter.y
-  const r = x * x + y * y
-  const v = 1 / (0.5 + r) / 2
-  return { x: -y / r * v, y: x / r * v }
+  const vr = x * x + y * y
+  const v = 1 / (0.5 + vr) / 2
+  vx -= y / vr * v
+  vy += x / vr * v
+  return { x: vx, y: vy, z: vz }
 }
 
 function normalizeParticle(p) {
   // Assume non-divergent field. det should be 1.
-  const det = p.xx * p.yy - p.xy * p.xy
+  const det = p.xx * p.yy * p.zz + 2 * p.xy * p.yz * p.zx - p.xx * p.yz * p.yz - p.yy * p.zx * p.zx - p.zz * p.xy * p.xy
   if (det < 0) return
-  const scale = 1 / Math.sqrt(det)
+  const scale = 1 / Math.cbrt(det)
+
   p.xx *= scale
   p.yy *= scale
+  p.zz *= scale
   p.xy *= scale
+  p.yz *= scale
+  p.zx *= scale
 }
 
 // Normalize level 2. Limit the eccentricity.
 function normalizeParticle2(p) {
   normalizeParticle(p)
-  const { xx, yy, xy } = p
-  const len = xx * xx + yy * yy // long + short
-  const maxLen = 4
-  if (len > maxLen) {
-    // det2 = (xx+add)*(yy+add)-xy*xy
-    // (xx+z)**2 + (yy+z)**2 = maxLen * det
-    const a = maxLen - 2
-    const b = (maxLen - 2) * (xx + yy)
-    const c = maxLen * (xx * yy - xy * xy) - xx * xx - yy * yy
-    const add = (-b + Math.sqrt(b * b - 4 * a * c)) / 2 / a
+  const { xx, yy, zz } = p
+  const len = xx * xx + yy * yy + zz * zz // long + short
+  const threshold = 4
+  if (len > threshold) {
+    const over = len - threshold
+    const add = over / (1 + over) / 10
     p.xx += add
     p.yy += add
+    p.zz += add
     normalizeParticle(p)
   }
 }
 
 function update() {
   for (const p of particles) {
-    const v = Velocity(p.x, p.y)
+    const { x, y, z, xx, yy, zz, xy, yz, zx } = p
+    const v = Velocity(x, y, z)
     // grad of v
     const delta = 0.001
     const vscale = 0.001
-    const vxp = Velocity(p.x + delta, p.y)
-    const vxm = Velocity(p.x - delta, p.y)
-    const vyp = Velocity(p.x, p.y + delta)
-    const vym = Velocity(p.x, p.y - delta)
+    const vxp = Velocity(x + delta, y, z)
+    const vxm = Velocity(x - delta, y, z)
+    const vyp = Velocity(x, y + delta, z)
+    const vym = Velocity(x, y - delta, z)
+    const vzp = Velocity(x, y, z + delta)
+    const vzm = Velocity(x, y, z - delta)
     const fxx = 1 + (vxp.x - vxm.x) / 2 / delta * vscale
-    const fxy = (vyp.x - vym.x) / 2 / delta * vscale
-    const fyx = (vxp.y - vxm.y) / 2 / delta * vscale
     const fyy = 1 + (vyp.y - vym.y) / 2 / delta * vscale
+    const fzz = 1 + (vzp.z - vzm.z) / 2 / delta * vscale
+    const fxy = (vyp.x - vym.x) / 2 / delta * vscale
+    const fxz = (vzp.x - vzm.x) / 2 / delta * vscale
+    const fyx = (vxp.y - vxm.y) / 2 / delta * vscale
+    const fyz = (vzp.y - vzm.y) / 2 / delta * vscale
+    const fzx = (vxp.z - vxm.z) / 2 / delta * vscale
+    const fzy = (vyp.z - vym.z) / 2 / delta * vscale
     // Transform:
-    // x2 = fxx*x + fxy*y
-    // y2 = fyx*x + fyy*y
-    // Covariance of x2, y2:
-    const xx = fxx * fxx * p.xx + fxy * fxy * p.yy + 2 * fxx * fxy * p.xy
-    const yy = fyx * fyx * p.xx + fyy * fyy * p.yy + 2 * fyx * fyy * p.xy
-    const xy = fxx * fyx * p.xx + fxy * fyy * p.yy + (fxx * fyy + fxy * fyx) * p.xy
+    // x2 = fxx*x + fxy*y + fxz*z
+    // y2 = fyx*x + fyy*y + fyz*z
+    // z2 = fzx*x + fzy*y + fzz*z
+    // Covariance of x2, y2, z2:
+    p.xx = fxx * fxx * xx + fxy * fxy * yy + fxz * fxz * zz +  2 * (fxx * fxy * xy + fxy * fxz * yz + fxz * fxx * zx)
+    p.yy = fyx * fyx * xx + fyy * fyy * yy + fyz * fyz * zz +  2 * (fyx * fyy * xy + fyy * fyz * yz + fyz * fyx * zx)
+    p.zz = fzx * fzx * xx + fzy * fzy * yy + fzz * fzz * zz +  2 * (fzx * fzy * xy + fzy * fzz * yz + fzz * fzx * zx)
+    p.xy = fxx * fyx * xx + fxy * fyy * yy + fxz * fyz * zz + (fxx * fyy + fxy * fyx) * xy + (fxy * fyz + fxz * fyy) * yz + (fxz * fyx + fxx * fyz) * zx
+    p.yz = fyx * fzx * xx + fyy * fzy * yy + fyz * fzz * zz + (fyx * fzy + fyy * fzx) * xy + (fyy * fzz + fyz * fzy) * yz + (fyz * fzx + fyx * fzz) * zx
+    p.zx = fzx * fxx * xx + fzy * fxy * yy + fzz * fxz * zz + (fzx * fxy + fxx * fxz) * xy + (fzy * fxz + fyy * fzx) * yz + (fzz * fxx + fxz * fzx) * zx
     p.x += vscale * v.x
     p.y += vscale * v.y
-    p.xx = xx
-    p.yy = yy
-    p.xy = xy
+    p.z += vscale * v.z
+    normalizeParticle2(p)
   }
 }
 
@@ -149,7 +169,6 @@ function draw() {
   let i = 0
   for (const p of particles) {
     renderer.ctx.globalAlpha = 0.1
-    normalizeParticle2(p)
     renderer.renderTexture(p, 0.1, textures[i % textures.length])
     i++
   }
