@@ -196,12 +196,40 @@ for (let i = 0; i < 100; i++) update()
 function renderUseXY(p) { return { x: p.x, y: p.y, xx: p.xx, yy: p.yy, xy: p.xy } }
 function renderUseXZ(p) { return { x: p.x, y: p.z, xx: p.xx, yy: p.zz, xy: p.zx } }
 
+const viewTransformMatrix = [
+  [1, 0, 0],
+  [0, 1, 0]
+]
+function viewTransform(p) {
+  const [[mxx, mxy, mxz], [myx, myy, myz]] = viewTransformMatrix
+  const { x, y, z, xx, yy, zz, xy, yz, zx } = p
+  return {
+    x: mxx * x + mxy * y + mxz * z,
+    y: myx * x + myy * y + myz * z,
+    xx: mxx * mxx * xx + mxy * mxy * yy + mxz * mxz * zz + 2 * (mxx * mxy * xy + mxy * mxz * yz + mxz * mxx * zx),
+    yy: myx * myx * xx + myy * myy * yy + myz * myz * zz + 2 * (myx * myy * xy + myy * myz * yz + myz * myx * zx),
+    xy: mxx * myx * xx + mxy * myy * yy + mxz * myz * zz + (mxx * myy + mxy * myx) * xy + (mxy * myz + mxz * myy) * yz + (mxz * myx + mxx * myz) * zx
+  }
+}
+
+function updateViewMatrix() {
+  const angleZ = 0.3 * Math.PI * mouse.y
+  const angle = 0.5 * Math.PI * mouse.x
+  const cz = Math.cos(angleZ)
+  const sz = Math.sin(angleZ)
+  const cos = Math.cos(angle)
+  const sin = Math.sin(angle)
+  viewTransformMatrix[0] = [cos, sin, 0]
+  viewTransformMatrix[1] = [-sin*sz, cos*sz, cz]
+}
+
 function draw() {
   renderer.clear()
   let i = 0
+  updateViewMatrix()
   for (const p of particles) {
     renderer.ctx.globalAlpha = 0.1
-    renderer.renderTexture(renderUseXY(p), 0.05, textures[i % textures.length])
+    renderer.renderTexture(viewTransform(p), 0.05, textures[i % textures.length])
     i++
   }
 }
