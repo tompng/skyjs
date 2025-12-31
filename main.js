@@ -70,10 +70,17 @@ const renderer = new Renderer(canvas)
 
 const particles = []
 for (let i = 0; i < 8000; i++) {
+  let x = 0
+  let y = 0
+  for (let j = 0; j < 10; j++) {
+    x += -0.4 + 0.8 * Math.random()
+    y += -0.4 + 0.8 * Math.random()
+    if (Math.random() < 100 * valueAt(wave, x * 256, y * 256)) break
+  }
   particles.push({
-    x: -0.5 + Math.random(),
-    y: -0.5 + 0.5*Math.random(),
-    z: -0.5 + 0.5*Math.random(),
+    x,//: -0.4 + 0.8 * Math.random(),
+    y,//: -0.4 + 0.8 * Math.random(),
+    z: valueAt(wave, 200 * (x + y), 200 * (x - y)) * 20 - 0.05 + 0.1 * Math.random(),
     xx: 1,
     yy: 1,
     zz: 1,
@@ -190,8 +197,6 @@ function update() {
     normalizeParticle2(p)
   }
 }
-
-for (let i = 0; i < 100; i++) update()
 
 function renderUseXY(p) { return { x: p.x, y: p.y, xx: p.xx, yy: p.yy, xy: p.xy } }
 function renderUseXZ(p) { return { x: p.x, y: p.z, xx: p.xx, yy: p.zz, xy: p.zx } }
