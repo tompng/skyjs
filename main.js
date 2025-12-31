@@ -3,6 +3,12 @@ for(let i=0;i<32;i++) {
   textures.push(generateNoiseTexture(64, 64))
 }
 
+const wave = generateSmoothNoise(256, 16)
+const [rotvx, rotvy] = generateRots(wave)
+document.body.appendChild(array2dToTexture(wave))
+document.body.appendChild(array2dToTexture(rotvx))
+document.body.appendChild(array2dToTexture(rotvy))
+
 for (const texture of textures) {
   document.body.appendChild(texture)
 }
@@ -37,9 +43,10 @@ class Renderer {
     if (isNaN(a) || isNaN(b)) return
     this.ctx.save()
     this.ctx.transform(a, c, c, b, p.x, p.y)
-    const alpha = this.ctx.globalAlpha / (1 + (p.xx + p.yy) * 0.1)
+    const alpha = this.ctx.globalAlpha / (1 + trace / 10)
 
-    const wireframe = 1/(1+Math.exp(20*p.x))/(1+Math.exp(20*p.y))
+    // const wireframe = 1/(1+Math.exp(20*p.x))/(1+Math.exp(20*p.y))
+    const wireframe = 0
     this.ctx.globalAlpha = alpha * wireframe
     this.ctx.strokeStyle = 'white'
     this.ctx.beginPath()
@@ -62,7 +69,7 @@ document.body.appendChild(canvas)
 const renderer = new Renderer(canvas)
 
 const particles = []
-for (let i = 0; i < 1000; i++) {
+for (let i = 0; i < 8000; i++) {
   particles.push({
     x: -0.5 + Math.random(),
     y: -0.5 + 0.5*Math.random(),
@@ -76,28 +83,40 @@ for (let i = 0; i < 1000; i++) {
   })
 }
 
-const vortexCenter = { x: 0, y: 0 }
+const mouse = { x: 0, y: 0 }
 const eventHandler = (e) => {
   const rect = canvas.getBoundingClientRect()
   const x = 2 * (e.clientX - rect.left) / rect.width - 1
   const y = 2 * (e.clientY - rect.top) / rect.height - 1
-  vortexCenter.x = Math.min(Math.max(-0.9, x), 0.9)
-  vortexCenter.y = Math.min(Math.max(-0.9, y), 0.9)
+  mouse.x = Math.min(Math.max(-0.9, x), 0.9)
+  mouse.y = Math.min(Math.max(-0.9, y), 0.9)
 }
 document.addEventListener('pointermove', eventHandler)
 document.addEventListener('pointerdown', eventHandler)
 
+let time = 0
 function Velocity(x, y, z) {
-  const r = x * x + y * y + z * z
-  let vx = 0
-  let vy = z / (0.5 + r) / 2 / r
-  let vz = -y / (0.5 + r) / 2 / r
-  x -= vortexCenter.x
-  y -= vortexCenter.y
-  const vr = x * x + y * y
-  const v = 1 / (0.5 + vr) / 2
-  vx -= y / vr * v
-  vy += x / vr * v
+  // let vx = 0
+  // let vy = z / (0.5 + r) / 2 / r
+  // let vz = -y / (0.5 + r) / 2 / r
+  let vx = 0, vy = 0, vz = 0
+  let tx, ty
+  tx = x * 256 + 0.1 * time + 140 * z
+  ty = y * 256 + 0.2 * time + 120 * z
+  vx += valueAt(rotvx, tx, ty) * 2000
+  vy += valueAt(rotvy, tx, ty) * 2000
+  vz += valueAt(wave, tx*1.1, ty*1.1) * 20
+  tx = x * 256 - 0.2 * time - 120 * z
+  ty = y * 256 + 0.1 * time + 140 * z
+  vx += valueAt(rotvx, tx, ty) * 2000
+  vy += valueAt(rotvy, tx, ty) * 2000
+  vz += valueAt(wave, tx*1.2, ty*1.2) * 20
+  tx = x * 256 + 0.2 * time - 130 * z
+  ty = y * 256 - 0.2 * time + 130 * z
+  vx += valueAt(rotvx, tx, ty) * 2000
+  vy += valueAt(rotvy, tx, ty) * 2000
+  vz += valueAt(wave, tx*1.3, ty*1.3) * 20
+  // vz += valueAt(wave, x * 256 + 0.01 * time, y * 256 + 0.02 * time) * 20
   return { x: vx, y: vy, z: vz }
 }
 
@@ -120,7 +139,7 @@ function normalizeParticle2(p) {
   normalizeParticle(p)
   const { xx, yy, zz } = p
   const len = xx * xx + yy * yy + zz * zz // long + short
-  const threshold = 4
+  const threshold = 8
   if (len > threshold) {
     const over = len - threshold
     const add = over / (1 + over) / 10
@@ -132,6 +151,7 @@ function normalizeParticle2(p) {
 }
 
 function update() {
+  time++
   for (const p of particles) {
     const { x, y, z, xx, yy, zz, xy, yz, zx } = p
     const v = Velocity(x, y, z)
@@ -173,12 +193,15 @@ function update() {
 
 for (let i = 0; i < 100; i++) update()
 
+function renderUseXY(p) { return { x: p.x, y: p.y, xx: p.xx, yy: p.yy, xy: p.xy } }
+function renderUseXZ(p) { return { x: p.x, y: p.z, xx: p.xx, yy: p.zz, xy: p.zx } }
+
 function draw() {
   renderer.clear()
   let i = 0
   for (const p of particles) {
     renderer.ctx.globalAlpha = 0.1
-    renderer.renderTexture(p, 0.1, textures[i % textures.length])
+    renderer.renderTexture(renderUseXY(p), 0.05, textures[i % textures.length])
     i++
   }
 }

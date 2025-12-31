@@ -50,11 +50,15 @@ function smooth1D(data, scale) {
   return output
 }
 
-function generateNoise(size) {
+function generateSmoothNoise(size, scale) {
   const rands = [...new Array(size)].map(() => [...new Array(size)].map(() => 2 * Math.random() - 1))
+  return smooth2D(rands, scale)
+}
+
+function generateNoise(size) {
   const scaledSmooths = []
   for (let scale = size; scale >= 1; scale /= 2) {
-    scaledSmooths.push(smooth2D(rands, scale))
+    scaledSmooths.push(generateSmoothNoise(size, scale))
   }
   const output = []
   let min = Infinity, max = -Infinity;
@@ -76,6 +80,31 @@ function generateNoise(size) {
     }
   }
   return output
+}
+
+function array2dToTexture(array2d) {
+  const canvas = document.createElement('canvas')
+  const sizeY = array2d.length
+  const sizeX = array2d[0].length
+  const min = Math.min(...array2d.flat())
+  const max = Math.max(...array2d.flat())
+  canvas.width = sizeX
+  canvas.height = sizeY
+  const ctx = canvas.getContext('2d')
+  const imageData = ctx.createImageData(sizeX, sizeY)
+  const data = imageData.data
+  for (let y = 0; y < sizeY; y++) {
+    for (let x = 0; x < sizeX; x++) {
+      let index = (y * sizeX + x) * 4
+      let v = (array2d[y][x] - min) / (max - min) * 255
+      data[index] = v
+      data[index + 1] = v
+      data[index + 2] = v
+      data[index + 3] = 255
+    }
+  }
+  ctx.putImageData(imageData, 0, 0)
+  return canvas
 }
 
 function generateNoiseTexture(size) {
@@ -104,4 +133,44 @@ function generateNoiseTexture(size) {
   }
   ctx.putImageData(imageData, 0, 0)
   return canvas
+}
+
+function generateGrads(array2d) {
+  const sizeY = array2d.length
+  const sizeX = array2d[0].length
+  const dxs = [...new Array(sizeY)].map(() => new Array(sizeX).fill(0))
+  const dys = [...new Array(sizeY)].map(() => new Array(sizeX).fill(0))
+  for (let y = 0; y < sizeY; y++) {
+    for (let x = 0; x < sizeX; x++) {
+      const dx = array2d[y][(x + 1) % sizeX] - array2d[y][(x - 1 + sizeX) % sizeX]
+      const dy = array2d[(y + 1) % sizeY][x] - array2d[(y - 1 + sizeY) % sizeY][x]
+      dxs[y][x] = dx / 2
+      dys[y][x] = dy / 2
+    }
+  }
+  return [dxs, dys]
+}
+
+function generateRots(array2d) {
+  const [xs, ys] = generateGrads(array2d)
+  ys.forEach(row => row.forEach((v, i) => { row[i] = -v }))
+  return [ys, xs]
+}
+
+function valueAt(array2d, x, y) {
+  const sizeY = array2d.length
+  const sizeX = array2d[0].length
+  const ix = Math.floor(x)
+  const iy = Math.floor(y)
+  const fx = x - ix
+  const fy = y - iy
+  const ix0 = ((ix + sizeX) % sizeX + sizeX) % sizeX
+  const iy0 = ((iy + sizeY) % sizeY + sizeY) % sizeY
+  const ix1 = (ix0 + 1) % sizeX
+  const iy1 = (iy0 + 1) % sizeY
+  return (
+    array2d[iy0][ix0] * (1 - fx) + array2d[iy0][ix1] * fx
+  ) * (1 - fy) + fy * (
+    array2d[iy1][ix0] * (1 - fx) + array2d[iy1][ix1] * fx
+  )
 }
