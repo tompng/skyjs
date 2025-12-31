@@ -1,5 +1,5 @@
 const textures = []
-for(let i=0;i<64;i++) {
+for(let i=0;i<32;i++) {
   textures.push(generateNoiseTexture(64, 64))
 }
 
@@ -36,8 +36,17 @@ class Renderer {
     const b = Math.sqrt(p.yy - c*c)
     if (isNaN(a) || isNaN(b)) return
     this.ctx.save()
-    this.ctx.globalAlpha /= 1 + (p.xx + p.yy) * 0.1
     this.ctx.transform(a, c, c, b, p.x, p.y)
+    const alpha = this.ctx.globalAlpha / (1 + (p.xx + p.yy) * 0.1)
+
+    const wireframe = 1/(1+Math.exp(20*p.x))/(1+Math.exp(20*p.y))
+    this.ctx.globalAlpha = alpha * wireframe
+    this.ctx.strokeStyle = 'white'
+    this.ctx.beginPath()
+    this.ctx.arc(0, 0, r, 0, 2 * Math.PI)
+    this.ctx.lineWidth = r/10
+    this.ctx.stroke()
+    this.ctx.globalAlpha = alpha * (1 - wireframe)
     this.ctx.drawImage(texture, -r, -r, 2*r, 2*r)
     this.ctx.restore()
   }
