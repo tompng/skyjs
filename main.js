@@ -23,7 +23,7 @@ class Renderer {
     this.ctx.translate(this.width / 2, this.height / 2)
     this.ctx.scale(size / 2, size / 2)
   }
-  renderTexture(p, r, texture) {
+  renderTexture(p, r, alpha, texture) {
     texture = texture || textures[textures.length * Math.random() | 0]
     // p: { x, y, xx, yy, xy } (center and covariance)
     // transform matrix = [[a, c], [c, b]]
@@ -43,17 +43,17 @@ class Renderer {
     if (isNaN(a) || isNaN(b)) return
     this.ctx.save()
     this.ctx.transform(a, c, c, b, p.x, p.y)
-    const alpha = this.ctx.globalAlpha / (1 + trace / 10)
+    const renderAlpha = alpha/ (1 + trace / 10)
 
     // const wireframe = 1/(1+Math.exp(20*p.x))/(1+Math.exp(20*p.y))
     const wireframe = 0
-    this.ctx.globalAlpha = alpha * wireframe
+    this.ctx.globalAlpha = renderAlpha * wireframe
     this.ctx.strokeStyle = 'white'
     this.ctx.beginPath()
     this.ctx.arc(0, 0, r, 0, 2 * Math.PI)
     this.ctx.lineWidth = r/10
     this.ctx.stroke()
-    this.ctx.globalAlpha = alpha * (1 - wireframe)
+    this.ctx.globalAlpha = renderAlpha * (1 - wireframe)
     this.ctx.drawImage(texture, -r, -r, 2*r, 2*r)
     this.ctx.restore()
   }
@@ -89,6 +89,8 @@ for (let i = 0; i < 8000; i++) {
     zx: 0
   })
 }
+const initialPosition = particles.map(p => ({ x: p.x, y: p.y, z: p.z }))
+const particlePhase = particles.map(() => Math.random())
 
 const mouse = { x: 0, y: 0 }
 const eventHandler = (e) => {
@@ -232,10 +234,21 @@ function draw() {
   renderer.clear()
   let i = 0
   updateViewMatrix()
-  for (const p of particles) {
-    renderer.ctx.globalAlpha = 0.1
-    renderer.renderTexture(viewTransform(p), 0.05, textures[i % textures.length])
-    i++
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i]
+    const phase = particlePhase[i] += 0.002
+    if (phase < 1) {
+      const alpha = phase < 0.1 ? phase * 10 : phase > 0.9 ? (1 - phase) * 10 : 1
+      renderer.renderTexture(viewTransform(p), 0.05, alpha * 0.1, textures[i % textures.length])
+    } else {
+      particlePhase[i] = 0
+      const ip = initialPosition[i]
+      p.x = ip.x
+      p.y = ip.y
+      p.z = ip.z
+      p.xx = p.yy = p.zz = 1
+      p.xy = p.yz = p.zx = 0
+    }
   }
 }
 draw()
