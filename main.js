@@ -75,7 +75,6 @@ const canvas = document.createElement('canvas')
 canvas.style.display = 'block'
 canvas.width = canvas.height = 512
 document.body.appendChild(canvas)
-canvas.style.background = 'linear-gradient(to bottom, #87ceeb, #ffddaa)'
 const renderer = new Renderer(canvas)
 
 const particles = []
@@ -90,7 +89,7 @@ for (let i = 0; i < 8000; i++) {
   particles.push({
     x,//: -0.4 + 0.8 * Math.random(),
     y,//: -0.4 + 0.8 * Math.random(),
-    z: valueAt(wave, 200 * (x + y), 200 * (x - y)) * 20 - 0.05 + 0.1 * Math.random(),
+    z: valueAt(wave, 200 * (x + y), 200 * (x - y)) * 10 - 0.05 + 0.1 * Math.random() + valueAt(wave, 32 * (x + y), 32 * (x - y)) * 20,
     xx: 1,
     yy: 1,
     zz: 1,
@@ -120,19 +119,19 @@ function Velocity(x, y, z) {
   // let vz = -y / (0.5 + r) / 2 / r
   let vx = 0, vy = 0, vz = 0
   let tx, ty
-  tx = x * 256 + 0.1 * time + 140 * z
+  tx = x * 32 + 0.1 * time + 140 * z
   ty = y * 256 + 0.2 * time + 120 * z
   vx += valueAt(rotvx, tx, ty) * 2000
   vy += valueAt(rotvy, tx, ty) * 2000
   vz += valueAt(wave, tx*1.1, ty*1.1) * 20
-  tx = x * 256 - 0.2 * time - 120 * z
+  tx = x * 32 - 0.2 * time - 120 * z
   ty = y * 256 + 0.1 * time + 140 * z
   vx += valueAt(rotvx, tx, ty) * 2000
   vy += valueAt(rotvy, tx, ty) * 2000
   vz += valueAt(wave, tx*1.2, ty*1.2) * 20
-  tx = x * 256 + 0.2 * time - 130 * z
+  tx = x * 32 + 0.2 * time - 130 * z
   ty = y * 256 - 0.2 * time + 130 * z
-  vx += valueAt(rotvx, tx, ty) * 2000
+  vx += 2 + valueAt(rotvx, tx, ty) * 2000
   vy += valueAt(rotvy, tx, ty) * 2000
   vz += valueAt(wave, tx*1.3, ty*1.3) * 20
   // vz += valueAt(wave, x * 256 + 0.01 * time, y * 256 + 0.02 * time) * 20
@@ -241,12 +240,55 @@ function updateViewMatrix() {
   viewTransformMatrix[0] = [cos, sin, 0]
   viewTransformMatrix[1] = [-sin*sz, cos*sz, -cz]
   viewTransformMatrix[2] = [-sin*cz, cos*cz, sz]
+  return angleZ
+}
+
+function num2hex(n) {
+  if (n < 0) return '00'
+  if (n > 255) return 'ff'
+  return (256 + Math.round(n)).toString(16).substring(1)
+}
+
+function skyColorAngleZ(angleZ) {
+  const colorStops = [
+    [-2, [0x40, 0x60, 0xa0]],
+    [-1, [0x87, 0xce, 0xeb]],
+    [1, [0xff, 0xdd, 0xaa]],
+    [2, [0xff, 0x88, 0x88]]
+  ]
+  const rgbs = []
+  const step = 10
+  for (let i = 0; i < step; i++) {
+    const t = -angleZ + (2 * (i / (step - 1)) - 1)
+    if (time==0)console.log(t)
+    let color
+    if (t <= colorStops[0][0]) {
+      color = colorStops[0][1]
+    } else if (t > colorStops[colorStops.length - 1][0]) {
+      color = colorStops[colorStops.length - 1][1]
+    } else {
+      for (let j = 0; j < colorStops.length - 1; j++) {
+        const [t0, c0] = colorStops[j]
+        const [t1, c1] = colorStops[j + 1]
+        if (t0 <= t && t <= t1) {
+          const ft = (t - t0) / (t1 - t0)
+          color = [
+            c0[0] * (1 - ft) + c1[0] * ft,
+            c0[1] * (1 - ft) + c1[1] * ft,
+            c0[2] * (1 - ft) + c1[2] * ft
+          ]
+        }
+      }
+    }
+    rgbs.push(color)
+  }
+  return `linear-gradient(to bottom, ${rgbs.map(c => `#${num2hex(c[0])}${num2hex(c[1])}${num2hex(c[2])}`).join(', ')})`
 }
 
 function draw() {
   renderer.clear()
-  let i = 0
-  updateViewMatrix()
+  const angleZ = updateViewMatrix()
+  canvas.style.background = skyColorAngleZ(angleZ)// 'linear-gradient(to bottom, #87ceeb, #ffddaa)'
   const screenspaceParticles = []
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i]
