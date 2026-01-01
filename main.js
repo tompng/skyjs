@@ -10,6 +10,64 @@ for (const texture of textures) {
   document.body.appendChild(texture)
 }
 
+class ShadowMap3D {
+  constructor(size) {
+    this.size = size
+    this.data = [...new Array(size)].map(() => [...new Array(size)].map(() => new Array(size).fill(0)))
+  }
+  // x, y, z:depth in light space
+  addDensity(x, y, z, density) {
+    const size = this.size
+    x = (x + 1) / 2 * size
+    y = (y + 1) / 2 * size
+    z = (z + 1) / 2 * size
+    if (x < 0 || y < 0 || z < 0 || x >= size - 1.01 || y >= size - 1.01 || z >= size - 1.01) return
+    const ix = Math.floor(x)
+    const iy = Math.floor(y)
+    const iz = Math.floor(z)
+    const ax = x - ix
+    const ay = y - iy
+    const az = z - iz
+    const bx = 1 - ax
+    const by = 1 - ay
+    const bz = 1 - az
+    this.data[ix][iy][iz] += density * bx * by * bz
+    this.data[ix+1][iy][iz] += density * ax * by * bz
+    this.data[ix][iy+1][iz] += density * bx * ay * bz
+    this.data[ix+1][iy+1][iz] += density * ax * ay * bz
+    this.data[ix][iy][iz+1] += density * bx * by * az
+    this.data[ix+1][iy][iz+1] += density * ax * by * az
+    this.data[ix][iy+1][iz+1] += density * bx * ay * az
+    this.data[ix+1][iy+1][iz+1] += density * ax * ay * az
+  }
+  clear() {
+    this.data.forEach(yzs => yzs.forEach(zs => zs.fill(0)))
+  }
+  calculateBrightness() {
+    const size = this.size
+    this.data.forEach(yzs => yzs.forEach(zs => {
+      let brightness = 1
+      for (let i = 0; i < zs.length; i++) {
+        brightness *= Math.max(1 - zs[i] / size, 0)
+        zs[i] = brightness
+      }
+    }))
+  }
+  brightnessAt(x, y, z) {
+    const size = this.size
+    x = (x + 1) / 2 * size
+    y = (y + 1) / 2 * size
+    z = (z + 1) / 2 * size
+    if (x < 0) x = 0
+    if (y < 0) y = 0
+    if (z < 0) z = 0
+    if (x > size - 1) x = size - 1
+    if (y > size - 1) y = size - 1
+    if (z > size - 1) z = size - 1
+    return valueAt3D(this.data, x, y, z)
+  }
+}
+
 class Renderer {
   constructor(canvas) {
     this.canvas = canvas
@@ -70,7 +128,7 @@ class Renderer {
     this.ctx.clearRect(-1, -1, 2, 2)
   }
 }
-
+const shadow = new ShadowMap3D(64)
 const canvas = document.createElement('canvas')
 canvas.style.display = 'block'
 canvas.width = canvas.height = 512
@@ -290,13 +348,19 @@ function draw() {
   const angleZ = updateViewMatrix()
   canvas.style.background = skyColorAngleZ(angleZ)// 'linear-gradient(to bottom, #87ceeb, #ffddaa)'
   const screenspaceParticles = []
+  shadow.clear()
+  for (const p of particles) {
+    shadow.addDensity(p.y * 0.8, p.z * 0.8, 0.8 * p.x - 0.2 * p.z, 4)
+  }
+  shadow.calculateBrightness()
+
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i]
     const phase = particlePhase[i] += 0.002
     if (phase < 1) {
       const alpha = phase < 0.1 ? phase * 10 : phase > 0.9 ? (1 - phase) * 10 : 1
-      const color = Math.max(Math.min(2 * p.z + 0.5, 1), 0)
-      screenspaceParticles.push({ p: viewTransform(p), r: 0.05, a: alpha * 0.5, t: textures[i % textures.length], c: color })
+      const brightness = shadow.brightnessAt(p.y * 0.8, p.z * 0.8, 0.8 * p.x - 0.2 * p.z)
+      screenspaceParticles.push({ p: viewTransform(p), r: 0.05, a: alpha * 0.5, t: textures[i % textures.length], c: brightness })
     } else {
       particlePhase[i] = 0
       const ip = initialPosition[i]

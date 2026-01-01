@@ -169,8 +169,33 @@ function valueAt(array2d, x, y) {
   const ix1 = (ix0 + 1) % sizeX
   const iy1 = (iy0 + 1) % sizeY
   return (
-    array2d[iy0][ix0] * (1 - fx) + array2d[iy0][ix1] * fx
+    array2d[ix0][iy0] * (1 - fx) + array2d[ix1][iy0] * fx
   ) * (1 - fy) + fy * (
-    array2d[iy1][ix0] * (1 - fx) + array2d[iy1][ix1] * fx
+    array2d[ix0][iy1] * (1 - fx) + array2d[ix1][iy1] * fx
+  )
+}
+
+function valueAt3D(array3d, x, y, z) {
+  const sizeZ = array3d.length
+  const sizeY = array3d[0].length
+  const sizeX = array3d[0][0].length
+  const iz = Math.floor(z)
+  const iy = Math.floor(y)
+  const ix = Math.floor(x)
+  const fz = z - iz
+  const fy = y - iy
+  const fx = x - ix
+  const ix0 = ((ix + sizeX) % sizeX + sizeX) % sizeX
+  const iy0 = ((iy + sizeY) % sizeY + sizeY) % sizeY
+  const iz0 = ((iz + sizeZ) % sizeZ + sizeZ) % sizeZ
+  const ix1 = (ix0 + 1) % sizeX
+  const iy1 = (iy0 + 1) % sizeY
+  const iz1 = (iz0 + 1) % sizeZ
+  return (
+    (array3d[ix0][iy0][iz0] * (1 - fx) + array3d[ix1][iy0][iz0] * fx) * (1 - fy) +
+    (array3d[ix0][iy1][iz0] * (1 - fx) + array3d[ix1][iy1][iz0] * fx) * fy
+  ) * (1 - fz) + fz * (
+    (array3d[ix0][iy0][iz1] * (1 - fx) + array3d[ix1][iy0][iz1] * fx) * (1 - fy) +
+    (array3d[ix0][iy1][iz1] * (1 - fx) + array3d[ix1][iy1][iz1] * fx) * fy
   )
 }
