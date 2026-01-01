@@ -6,12 +6,7 @@ for(let i=0;i<16;i++) {
 const noise3da = generateSmoothNoise3D(64, 64, 64, 4, 4, 4)
 const noise3db = generateSmoothNoise3D(64, 64, 64, 3, 3, 3)
 const noise3dc = generateSmoothNoise3D(64, 64, 64, 2, 2, 2)
-
-const wave = generateSmoothNoise(256, 16)
-
-for (const texture of textures) {
-  document.body.appendChild(texture)
-}
+const noise2d = generateSmoothNoise(256, 16)
 
 class ShadowMap3D {
   constructor(size) {
@@ -134,7 +129,7 @@ class Renderer {
 const shadow = new ShadowMap3D(64)
 const canvas = document.createElement('canvas')
 canvas.style.display = 'block'
-canvas.width = canvas.height = 512
+canvas.width = canvas.height = 800
 document.body.appendChild(canvas)
 const renderer = new Renderer(canvas)
 
@@ -145,12 +140,12 @@ for (let i = 0; i < 8000; i++) {
   for (let j = 0; j < 10; j++) {
     x += -0.4 + 0.8 * Math.random()
     y += -0.4 + 0.8 * Math.random()
-    if (Math.random() < 100 * valueAt(wave, x * 256, y * 256)) break
+    if (Math.random() < 100 * valueAt(noise2d, x * 256, y * 256)) break
   }
   particles.push({
-    x,//: -0.4 + 0.8 * Math.random(),
-    y,//: -0.4 + 0.8 * Math.random(),
-    z: valueAt(wave, 200 * (x + y), 200 * (x - y)) * 10 - 0.05 + 0.1 * Math.random() + valueAt(wave, 32 * (x + y), 32 * (x - y)) * 20,
+    x,
+    y,
+    z: valueAt(noise2d, 200 * (x + y), 200 * (x - y)) * 10 - 0.05 + 0.1 * Math.random() + valueAt(noise2d, 32 * (x + y), 32 * (x - y)) * 20,
     xx: 1,
     yy: 1,
     zz: 1,
