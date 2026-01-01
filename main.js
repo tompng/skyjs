@@ -138,8 +138,8 @@ for (let i = 0; i < 8000; i++) {
   let x = 0
   let y = 0
   for (let j = 0; j < 10; j++) {
-    x += -0.4 + 0.8 * Math.random()
-    y += -0.4 + 0.8 * Math.random()
+    x = -0.6 + 1.2 * Math.random()
+    y = -0.6 + 1.2 * Math.random()
     if (Math.random() < 100 * valueAt(noise2d, x * 256, y * 256)) break
   }
   particles.push({
