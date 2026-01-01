@@ -55,6 +55,33 @@ function generateSmoothNoise(size, scale) {
   return smooth2D(rands, scale)
 }
 
+function generateSmoothNoise3D(xsize, ysize, zsize, xscale, yscale, zscale) {
+  const rands = [...new Array(xsize)].map(() => [...new Array(ysize)].map(() => [...new Array(zsize)].map(() => 2 * Math.random() - 1)))
+  for (let ix = 0; ix < xsize; ix++) {
+    for (let iy = 0; iy < ysize; iy++) {
+      const output = smooth1D(rands[ix][iy], zscale)
+      for (let iz = 0; iz < zsize; iz++) rands[ix][iy][iz] = output[iz]
+    }
+  }
+  for (let ix = 0; ix < xsize; ix++) {
+    for (let iz = 0; iz < zsize; iz++) {
+      const input = []
+      for (let iy = 0; iy < ysize; iy++) input[iy] = rands[ix][iy][iz]
+      const output = smooth1D(input, yscale)
+      for (let iy = 0; iy < ysize; iy++) rands[ix][iy][iz] = output[iy]
+    }
+  }
+  for (let iy = 0; iy < ysize; iy++) {
+    for (let iz = 0; iz < zsize; iz++) {
+      const input = []
+      for (let ix = 0; ix < xsize; ix++) input[ix] = rands[ix][iy][iz]
+      const output = smooth1D(input, xscale)
+      for (let ix = 0; ix < xsize; ix++) rands[ix][iy][iz] = output[ix]
+    }
+  }
+  return rands
+}
+
 function generateNoise(size) {
   const scaledSmooths = []
   for (let scale = size; scale >= 1; scale /= 2) {

@@ -3,8 +3,11 @@ for(let i=0;i<16;i++) {
   textures.push(generateNoiseTexture(64, 64))
 }
 
+const noise3da = generateSmoothNoise3D(64, 64, 64, 4, 4, 4)
+const noise3db = generateSmoothNoise3D(64, 64, 64, 3, 3, 3)
+const noise3dc = generateSmoothNoise3D(64, 64, 64, 2, 2, 2)
+
 const wave = generateSmoothNoise(256, 16)
-const [rotvx, rotvy] = generateRots(wave)
 
 for (const texture of textures) {
   document.body.appendChild(texture)
@@ -175,24 +178,26 @@ function Velocity(x, y, z) {
   // let vx = 0
   // let vy = z / (0.5 + r) / 2 / r
   // let vz = -y / (0.5 + r) / 2 / r
-  let vx = 0, vy = 0, vz = 0
-  let tx, ty
-  tx = x * 32 + 0.1 * time + 140 * z
-  ty = y * 256 + 0.2 * time + 120 * z
-  vx += valueAt(rotvx, tx, ty) * 2000
-  vy += valueAt(rotvy, tx, ty) * 2000
-  vz += valueAt(wave, tx*1.1, ty*1.1) * 20
-  tx = x * 32 - 0.2 * time - 120 * z
-  ty = y * 256 + 0.1 * time + 140 * z
-  vx += valueAt(rotvx, tx, ty) * 2000
-  vy += valueAt(rotvy, tx, ty) * 2000
-  vz += valueAt(wave, tx*1.2, ty*1.2) * 20
-  tx = x * 32 + 0.2 * time - 130 * z
-  ty = y * 256 - 0.2 * time + 130 * z
-  vx += 2 + valueAt(rotvx, tx, ty) * 2000
-  vy += valueAt(rotvy, tx, ty) * 2000
-  vz += valueAt(wave, tx*1.3, ty*1.3) * 20
-  // vz += valueAt(wave, x * 256 + 0.01 * time, y * 256 + 0.02 * time) * 20
+  let vx = 1, vy = 0, vz = 0
+  let tx, ty, tz
+  tx = x * 8 + 0.05 * time
+  ty = y * 32 + 0.1 * time
+  tz = z * 4
+  vx += valueAt3D(noise3dc, tx, ty, tz) * 20
+  vy += valueAt3D(noise3dc, tx, ty, tz + 10) * 20
+  vz += valueAt3D(noise3dc, tx, ty, tz + 20) * 2
+  tx = x * 8 - 0.1 * time
+  ty = y * 32 + 0.05 * time
+  tz = z * 4 + 3
+  vx += valueAt3D(noise3dc, tx, ty, tz) * 20
+  vy += valueAt3D(noise3dc, tx, ty, tz + 10) * 20
+  vz += valueAt3D(noise3dc, tx, ty, tz + 20) * 2
+  tx = x * 8 + 0.1 * time
+  ty = y * 32 - 0.1 * time
+  tz = z * 4 + 6
+  vx += valueAt3D(noise3dc, tx, ty, tz) * 20
+  vy += valueAt3D(noise3dc, tx, ty, tz + 10) * 20
+  vz += valueAt3D(noise3dc, tx, ty, tz + 20) * 2
   return { x: vx, y: vy, z: vz }
 }
 
@@ -318,7 +323,6 @@ function skyColorAngleZ(angleZ) {
   const step = 10
   for (let i = 0; i < step; i++) {
     const t = -angleZ + (2 * (i / (step - 1)) - 1)
-    if (time==0)console.log(t)
     let color
     if (t <= colorStops[0][0]) {
       color = colorStops[0][1]
