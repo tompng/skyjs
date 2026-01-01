@@ -1,13 +1,10 @@
 const textures = []
-for(let i=0;i<32;i++) {
+for(let i=0;i<16;i++) {
   textures.push(generateNoiseTexture(64, 64))
 }
 
 const wave = generateSmoothNoise(256, 16)
 const [rotvx, rotvy] = generateRots(wave)
-document.body.appendChild(array2dToTexture(wave))
-document.body.appendChild(array2dToTexture(rotvx))
-document.body.appendChild(array2dToTexture(rotvy))
 
 for (const texture of textures) {
   document.body.appendChild(texture)
@@ -23,7 +20,28 @@ class Renderer {
     this.ctx.translate(this.width / 2, this.height / 2)
     this.ctx.scale(size / 2, size / 2)
   }
-  renderTexture(p, r, alpha, texture) {
+  variant(texture, brightness) {
+    this.variantCache = this.variantCache || new Map()
+    const level = Math.round(brightness * 10)
+    let levelCache = this.variantCache.get(texture)
+    if (!levelCache) this.variantCache.set(texture, levelCache = [])
+    if (levelCache[level]) return levelCache[level]
+    const t = level / 10
+    const r = Math.round(t * 128 + 128)
+    const g = Math.round(t * 64 + 128)
+    const b = Math.round(128)
+    const variant = document.createElement('canvas')
+    const ctx = variant.getContext('2d')
+    variant.width = texture.width
+    variant.height = texture.height
+    ctx.drawImage(texture, 0, 0)
+    ctx.globalCompositeOperation = 'source-in'
+    ctx.fillStyle = `rgb(${r},${g},${b})`
+    ctx.fillRect(0, 0, variant.width, variant.height)
+    levelCache[level] = variant
+    return variant
+  }
+  renderTexture(p, r, alpha, texture, color) {
     texture = texture || textures[textures.length * Math.random() | 0]
     // p: { x, y, xx, yy, xy } (center and covariance)
     // transform matrix = [[a, c], [c, b]]
@@ -43,18 +61,9 @@ class Renderer {
     if (isNaN(a) || isNaN(b)) return
     this.ctx.save()
     this.ctx.transform(a, c, c, b, p.x, p.y)
-    const renderAlpha = alpha/ (1 + trace / 10)
-
-    // const wireframe = 1/(1+Math.exp(20*p.x))/(1+Math.exp(20*p.y))
-    const wireframe = 0
-    this.ctx.globalAlpha = renderAlpha * wireframe
-    this.ctx.strokeStyle = 'white'
-    this.ctx.beginPath()
-    this.ctx.arc(0, 0, r, 0, 2 * Math.PI)
-    this.ctx.lineWidth = r/10
-    this.ctx.stroke()
-    this.ctx.globalAlpha = renderAlpha * (1 - wireframe)
-    this.ctx.drawImage(texture, -r, -r, 2*r, 2*r)
+    this.ctx.globalAlpha =  alpha / (1 + trace / 10)
+    const tex = this.variant(texture, color)
+    this.ctx.drawImage(tex, -r, -r, 2*r, 2*r)
     this.ctx.restore()
   }
   clear() {
@@ -66,6 +75,7 @@ const canvas = document.createElement('canvas')
 canvas.style.display = 'block'
 canvas.width = canvas.height = 512
 document.body.appendChild(canvas)
+canvas.style.background = 'linear-gradient(to bottom, #87ceeb, #ffddaa)'
 const renderer = new Renderer(canvas)
 
 const particles = []
@@ -205,14 +215,16 @@ function renderUseXZ(p) { return { x: p.x, y: p.z, xx: p.xx, yy: p.zz, xy: p.zx 
 
 const viewTransformMatrix = [
   [1, 0, 0],
-  [0, 1, 0]
+  [0, 1, 0],
+  [0, 0, 1]
 ]
 function viewTransform(p) {
-  const [[mxx, mxy, mxz], [myx, myy, myz]] = viewTransformMatrix
+  const [[mxx, mxy, mxz], [myx, myy, myz], [mzx, mzy, mzz]] = viewTransformMatrix
   const { x, y, z, xx, yy, zz, xy, yz, zx } = p
   return {
     x: mxx * x + mxy * y + mxz * z,
     y: myx * x + myy * y + myz * z,
+    z: mzx * x + mzy * y + mzz * z,
     xx: mxx * mxx * xx + mxy * mxy * yy + mxz * mxz * zz + 2 * (mxx * mxy * xy + mxy * mxz * yz + mxz * mxx * zx),
     yy: myx * myx * xx + myy * myy * yy + myz * myz * zz + 2 * (myx * myy * xy + myy * myz * yz + myz * myx * zx),
     xy: mxx * myx * xx + mxy * myy * yy + mxz * myz * zz + (mxx * myy + mxy * myx) * xy + (mxy * myz + mxz * myy) * yz + (mxz * myx + mxx * myz) * zx
@@ -227,19 +239,22 @@ function updateViewMatrix() {
   const cos = Math.cos(angle)
   const sin = Math.sin(angle)
   viewTransformMatrix[0] = [cos, sin, 0]
-  viewTransformMatrix[1] = [-sin*sz, cos*sz, cz]
+  viewTransformMatrix[1] = [-sin*sz, cos*sz, -cz]
+  viewTransformMatrix[2] = [-sin*cz, cos*cz, sz]
 }
 
 function draw() {
   renderer.clear()
   let i = 0
   updateViewMatrix()
+  const screenspaceParticles = []
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i]
     const phase = particlePhase[i] += 0.002
     if (phase < 1) {
       const alpha = phase < 0.1 ? phase * 10 : phase > 0.9 ? (1 - phase) * 10 : 1
-      renderer.renderTexture(viewTransform(p), 0.05, alpha * 0.1, textures[i % textures.length])
+      const color = Math.max(Math.min(2 * p.z + 0.5, 1), 0)
+      screenspaceParticles.push({ p: viewTransform(p), r: 0.05, a: alpha * 0.5, t: textures[i % textures.length], c: color })
     } else {
       particlePhase[i] = 0
       const ip = initialPosition[i]
@@ -250,6 +265,9 @@ function draw() {
       p.xy = p.yz = p.zx = 0
     }
   }
+  screenspaceParticles.sort((a, b) => b.p.z - a.p.z).forEach(({ p, r, a, t, c }) => {
+    renderer.renderTexture(p, r, a, t, c)
+  })
 }
 draw()
 setInterval(() => {
