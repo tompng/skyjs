@@ -76,28 +76,27 @@ class Renderer {
     this.ctx.translate(this.width / 2, this.height / 2)
     this.ctx.scale(size / 2, size / 2)
   }
-  variant(texture, brightness) {
+  variant(texture, style) {
+    // style: 0: black, 1: accent, 2: white
     this.variantCache = this.variantCache || new Map()
-    const level = Math.round(brightness * 10)
-    let levelCache = this.variantCache.get(texture)
-    if (!levelCache) this.variantCache.set(texture, levelCache = [])
-    if (levelCache[level]) return levelCache[level]
-    const t = level / 10
-    const r = Math.round(t * 128 + 128)
-    const g = Math.round(t * 64 + 128)
-    const b = Math.round(128)
+    let variants = this.variantCache.get(texture)
+    if (!variants) this.variantCache.set(texture, variants = [])
+    if (variants[style]) return variants[style]
+    // const r = Math.round(t * 128 + 128)
+    // const g = Math.round(t * 64 + 128)
+    // const b = Math.round(128)
     const variant = document.createElement('canvas')
     const ctx = variant.getContext('2d')
     variant.width = texture.width
     variant.height = texture.height
     ctx.drawImage(texture, 0, 0)
     ctx.globalCompositeOperation = 'source-in'
-    ctx.fillStyle = `rgb(${r},${g},${b})`
+    ctx.fillStyle = ['#877', '#f60', 'white'][style]
     ctx.fillRect(0, 0, variant.width, variant.height)
-    levelCache[level] = variant
+    variants[style] = variant
     return variant
   }
-  renderTexture(p, r, alpha, texture, color) {
+  renderTexture(p, r, alpha, texture, accentness, brightness) {
     texture = texture || textures[textures.length * Math.random() | 0]
     // p: { x, y, xx, yy, xy } (center and covariance)
     // transform matrix = [[a, c], [c, b]]
@@ -117,11 +116,29 @@ class Renderer {
     if (isNaN(a) || isNaN(b)) return
     this.ctx.save()
     this.ctx.transform(a, c, c, b, p.x, p.y)
-    this.ctx.globalAlpha =  alpha / (1 + trace / 10)
-    const tex = this.variant(texture, color)
-    this.ctx.drawImage(tex, -r, -r, 2*r, 2*r)
+
+    alpha /= 1 + trace / 10
+
+    // Render two textures: black, color with alpha: a1, a2
+    // Solves this equation:
+    //   (dst * (1-a1) + a1*black)*(1-a2) + a2*color = dst * (1 - alpha) + alpha * color
+    const a2 = brightness * alpha
+    const a1 = a2 == 1 ? 0 : alpha * (1 - brightness) / (1 - a2)
+    this.ctx.globalAlpha = a1
+    this.ctx.drawImage(this.variant(texture, 0), -r, -r, 2*r, 2*r)
+
+    // Render color with two textures: accent, white, alpha: aa, aw
+    // Solves this equation:
+    //   (dst * (1-aa) + aa * accent) * (1-aw) + aw * white = dst * (1 - alpha) + alpha * (accent * accentness + (1 - accentness) * white)
+    const aw = (1 - accentness) * a2
+    const aa = aw == 1 ? 0 : 1 - (1 - a2) / (1 - aw)
+    this.ctx.globalAlpha = aa
+    this.ctx.drawImage(this.variant(texture, 1), -r, -r, 2*r, 2*r)
+    this.ctx.globalAlpha = aw
+    this.ctx.drawImage(this.variant(texture, 2), -r, -r, 2*r, 2*r)
     this.ctx.restore()
   }
+
   clear() {
     this.ctx.clearRect(-1, -1, 2, 2)
   }
@@ -134,6 +151,9 @@ document.body.appendChild(canvas)
 const renderer = new Renderer(canvas)
 
 const particles = []
+function addParticle(x, y, z) {
+  particles.push({ x, y, z, xx: 1, yy: 1, zz: 1, xy: 0, yz: 0, zx: 0 })
+}
 for (let i = 0; i < 8000; i++) {
   let x = 0
   let y = 0
@@ -142,17 +162,24 @@ for (let i = 0; i < 8000; i++) {
     y = -0.6 + 1.2 * Math.random()
     if (Math.random() < 100 * valueAt(noise2d, x * 256, y * 256)) break
   }
-  particles.push({
-    x,
-    y,
-    z: valueAt(noise2d, 200 * (x + y), 200 * (x - y)) * 10 - 0.05 + 0.1 * Math.random() + valueAt(noise2d, 32 * (x + y), 32 * (x - y)) * 20,
-    xx: 1,
-    yy: 1,
-    zz: 1,
-    xy: 0,
-    yz: 0,
-    zx: 0
-  })
+  const z = valueAt(noise2d, 200 * (x + y), 200 * (x - y)) * 10 - 0.05 + 0.1 * Math.random() + valueAt(noise2d, 32 * (x + y), 32 * (x - y)) * 20
+  addParticle(x, y, z)
+}
+
+for (const [x0, upperN] of [[-0.6, 1000], [0.2, 500]]) {
+  const alen = noise3da.length
+  const tbasex = alen * Math.random()
+  const tbasey = alen * Math.random()
+  const tbasez = alen * Math.random()
+  for (let i = 0; i < upperN; i++) {
+    let t = 2 * i / upperN - 1
+    t = Math.asin(t) * 2 / Math.PI
+    const r = (1 - t * t) * 0.002
+    const x = valueAt3D(noise3da, tbasex + t * noise3da.length / 5, tbasey, tbasez) + (Math.random() - 0.5) * r
+    const y = valueAt3D(noise3da, tbasex + t * noise3da.length / 5, tbasey, tbasez + noise3da.length / 3, 17) + (Math.random() - 0.5) * r
+    const z = valueAt3D(noise3da, tbasex + t * noise3da.length / 5, tbasey, tbasez + noise3da.length * 2 / 3, 37) + (Math.random() - 0.5) * r
+    addParticle(x0 + 20 * y, t / 4 + 20 * x, 20 * z + 0.6)
+  }
 }
 const initialPosition = particles.map(p => ({ x: p.x, y: p.y, z: p.z }))
 const particlePhase = particles.map(() => Math.random())
@@ -173,7 +200,7 @@ function Velocity(x, y, z) {
   // let vx = 0
   // let vy = z / (0.5 + r) / 2 / r
   // let vz = -y / (0.5 + r) / 2 / r
-  let vx = 1, vy = 0, vz = 0
+  let vx = (1 + z) ** 2 / 2, vy = 0, vz = 0
   let tx, ty, tz
   tx = x * 4 + 0.05 * time
   ty = y * 32 + 0.1 * time
@@ -359,7 +386,8 @@ function draw() {
     if (phase < 1) {
       const alpha = phase < 0.1 ? phase * 10 : phase > 0.9 ? (1 - phase) * 10 : 1
       const brightness = shadow.brightnessAt(p.y * 0.8, p.z * 0.8, 0.8 * p.x - 0.2 * p.z)
-      screenspaceParticles.push({ p: viewTransform(p), r: 0.05, a: alpha * 0.5, t: textures[i % textures.length], c: brightness })
+      const accentColor = Math.max(Math.min(0.5 - p.z, 1), 0.2)
+      screenspaceParticles.push({ p: viewTransform(p), r: 0.05, a: alpha * 0.5, t: textures[i % textures.length], ca: accentColor, cb: brightness })
     } else {
       particlePhase[i] = 0
       const ip = initialPosition[i]
@@ -370,8 +398,8 @@ function draw() {
       p.xy = p.yz = p.zx = 0
     }
   }
-  screenspaceParticles.sort((a, b) => b.p.z - a.p.z).forEach(({ p, r, a, t, c }) => {
-    renderer.renderTexture(p, r, a, t, c)
+  screenspaceParticles.sort((a, b) => b.p.z - a.p.z).forEach(({ p, r, a, t, ca, cb }) => {
+    renderer.renderTexture(p, r, a, t, ca, cb)
   })
 }
 draw()
