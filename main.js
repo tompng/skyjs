@@ -91,7 +91,7 @@ class Renderer {
     variant.height = texture.height
     ctx.drawImage(texture, 0, 0)
     ctx.globalCompositeOperation = 'source-in'
-    ctx.fillStyle = ['#877', '#f60', 'white'][style]
+    ctx.fillStyle = ['#877', '#f60', '#ffe'][style]
     ctx.fillRect(0, 0, variant.width, variant.height)
     variants[style] = variant
     return variant
@@ -376,7 +376,7 @@ function draw() {
   const screenspaceParticles = []
   shadow.clear()
   for (const p of particles) {
-    shadow.addDensity(p.y * 0.8, p.z * 0.8, 0.8 * p.x - 0.2 * p.z, 4)
+    shadow.addDensity(p.y * 0.8, p.z * 0.8, 0.8 * p.x - 0.2 * p.z, 2)
   }
   shadow.calculateBrightness()
 
