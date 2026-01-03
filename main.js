@@ -386,6 +386,8 @@ function viewTransform(p) {
   }
 }
 
+const shadowMapScale = 0.8
+
 function renderSkySphere() {
   const lstep = 100
   const tstep = 100
@@ -418,6 +420,19 @@ function renderSkySphere() {
   function calculateColor(p) {
     const t = (p.z + 0.2 * p.x) * 0.7 + 0.4
     const rgb = skyColorGradient(t)
+
+    let shade = 0
+    for (let t = projectionDistance - 1; t < projectionDistance + 2; t += 0.02) {
+      const x = cameraPosition.x + p.x * t
+      const y = cameraPosition.y + p.y * t
+      const z = cameraPosition.z + p.z * t
+      shade += 1 - shadow.brightnessAt(y * shadowMapScale, z * shadowMapScale, x * shadowMapScale)
+    }
+    shade = 0.8 + 0.2 * Math.exp(-shade / 8)
+    rgb[0] *= shade
+    rgb[1] *= shade
+    rgb[2] *= shade
+
     return rgb
   }
 
@@ -506,7 +521,7 @@ function draw() {
   const screenspaceParticles = []
   shadow.clear()
   for (const p of particles) {
-    shadow.addDensity(p.y * 0.8, p.z * 0.8, p.x * 0.8, 2)
+    shadow.addDensity(p.y * shadowMapScale, p.z * shadowMapScale, p.x * shadowMapScale, 2)
   }
   shadow.calculateBrightness()
 
@@ -515,7 +530,7 @@ function draw() {
     const phase = particlePhase[i] += 0.002
     if (phase < 1) {
       const alpha = phase < 0.1 ? phase * 10 : phase > 0.9 ? (1 - phase) * 10 : 1
-      const brightness = shadow.brightnessAt(p.y * 0.8, p.z * 0.8, p.x * 0.8)
+      const brightness = shadow.brightnessAt(p.y * shadowMapScale, p.z * shadowMapScale, p.x * shadowMapScale)
       const accentColor = Math.max(Math.min(0.5 - p.z, 1), 0.2)
       screenspaceParticles.push({ p: viewTransform(p), r: 0.05, a: alpha * 0.5, t: textures[i % textures.length], ca: accentColor, cb: brightness })
     } else {
@@ -529,11 +544,12 @@ function draw() {
     }
   }
   renderSkySphere()
-  drawCubeWireframe(+1)
+  const renderframe = location.hash.includes('wireframe')
+  if (renderframe) drawCubeWireframe(+1)
   screenspaceParticles.sort((a, b) => b.p.z - a.p.z).forEach(({ p, r, a, t, ca, cb }) => {
     renderer.renderTexture(p, r, a, t, ca, cb)
   })
-  drawCubeWireframe(-1)
+  if (renderframe) drawCubeWireframe(-1)
 }
 draw()
 setInterval(() => {
