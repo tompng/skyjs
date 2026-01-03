@@ -266,22 +266,22 @@ function Velocity(x, y, z) {
   // let vx = 0
   // let vy = z / (0.5 + r) / 2 / r
   // let vz = -y / (0.5 + r) / 2 / r
-  let vx = (1 + z) ** 2 / 2, vy = 0, vz = 0
+  let vx = 0, vy = (1 + z) ** 2 / 2, vz = 0
   let tx, ty, tz
-  tx = x * 4 + 0.05 * time
-  ty = y * 32 + 0.1 * time
+  tx = x * 32 + 0.05 * time
+  ty = y * 4 + 0.1 * time
   tz = z * 32
   vx += valueAt3D(noise3dc, tx, ty, tz) * 20
   vy += valueAt3D(noise3dc, tx, ty, tz + 10) * 20
   vz += valueAt3D(noise3dc, tx, ty, tz + 20) * 2
-  tx = x * 4 - 0.1 * time
-  ty = y * 32 + 0.05 * time
+  tx = x * 32 - 0.1 * time
+  ty = y * 4 + 0.05 * time
   tz = z * 32 + 3
   vx += valueAt3D(noise3dc, tx, ty, tz) * 20
   vy += valueAt3D(noise3dc, tx, ty, tz + 10) * 20
   vz += valueAt3D(noise3dc, tx, ty, tz + 20) * 2
-  tx = x * 4 + 0.1 * time
-  ty = y * 32 - 0.1 * time
+  tx = x * 32 + 0.1 * time
+  ty = y * 4 - 0.1 * time
   tz = z * 32 + 6
   vx += valueAt3D(noise3dc, tx, ty, tz) * 20
   vy += valueAt3D(noise3dc, tx, ty, tz + 10) * 20
