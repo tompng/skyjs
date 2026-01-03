@@ -305,13 +305,16 @@ const viewTransformMatrix = [
 function viewTransform(p) {
   const [[mxx, mxy, mxz], [myx, myy, myz], [mzx, mzy, mzz]] = viewTransformMatrix
   const { x, y, z, xx, yy, zz, xy, yz, zx } = p
+  const viewZ = 2 + mzx * x + mzy * y + mzz * z
+  const scale = 2 / viewZ
+  const covScale = scale * scale
   return {
-    x: mxx * x + mxy * y + mxz * z,
-    y: myx * x + myy * y + myz * z,
-    z: mzx * x + mzy * y + mzz * z,
-    xx: mxx * mxx * xx + mxy * mxy * yy + mxz * mxz * zz + 2 * (mxx * mxy * xy + mxy * mxz * yz + mxz * mxx * zx),
-    yy: myx * myx * xx + myy * myy * yy + myz * myz * zz + 2 * (myx * myy * xy + myy * myz * yz + myz * myx * zx),
-    xy: mxx * myx * xx + mxy * myy * yy + mxz * myz * zz + (mxx * myy + mxy * myx) * xy + (mxy * myz + mxz * myy) * yz + (mxz * myx + mxx * myz) * zx
+    x: (mxx * x + mxy * y + mxz * z) * scale,
+    y: (myx * x + myy * y + myz * z) * scale,
+    z: (mzx * x + mzy * y + mzz * z) * scale,
+    xx: (mxx * mxx * xx + mxy * mxy * yy + mxz * mxz * zz + 2 * (mxx * mxy * xy + mxy * mxz * yz + mxz * mxx * zx)) * covScale,
+    yy: (myx * myx * xx + myy * myy * yy + myz * myz * zz + 2 * (myx * myy * xy + myy * myz * yz + myz * myx * zx)) * covScale,
+    xy: (mxx * myx * xx + mxy * myy * yy + mxz * myz * zz + (mxx * myy + mxy * myx) * xy + (mxy * myz + mxz * myy) * yz + (mxz * myx + mxx * myz) * zx) * covScale
   }
 }
 
@@ -369,6 +372,26 @@ function skyColorAngleZ(angleZ) {
   return `linear-gradient(to bottom, ${rgbs.map(c => `#${num2hex(c[0])}${num2hex(c[1])}${num2hex(c[2])}`).join(', ')})`
 }
 
+function drawCubeWireframe(renderSide) {
+  for (let axis = 0; axis < 3; axis++) {
+    for (let side = 0; side < 4; side++) {
+      const a = side % 2 * 2 - 1, b = (side >> 1) % 2 * 2 - 1
+      const p = [a, b]
+      p.splice(axis, 0, 0)
+      const [v1, v2] = [-1, 1].map(c => {
+        p[axis] = c
+        return viewTransform({ x: p[0], y: p[1], z: p[2], xx: 0, yy: 0, zz: 0, xy: 0, yz: 0, zx: 0 })
+      })
+      if (renderSide != 0 && renderSide > 0 != (v1.z + v2.z) / 2 > 0) continue
+      renderer.ctx.beginPath()
+      renderer.ctx.moveTo(v1.x, v1.y)
+      renderer.ctx.lineTo(v2.x, v2.y)
+      renderer.ctx.lineWidth = 0.002
+      renderer.ctx.stroke()
+    }
+  }
+}
+
 function draw() {
   renderer.clear()
   const angleZ = updateViewMatrix()
@@ -398,9 +421,11 @@ function draw() {
       p.xy = p.yz = p.zx = 0
     }
   }
+  drawCubeWireframe(+1)
   screenspaceParticles.sort((a, b) => b.p.z - a.p.z).forEach(({ p, r, a, t, ca, cb }) => {
     renderer.renderTexture(p, r, a, t, ca, cb)
   })
+  drawCubeWireframe(-1)
 }
 draw()
 setInterval(() => {
