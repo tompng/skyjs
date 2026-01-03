@@ -369,6 +369,7 @@ const viewTransformMatrix = [
   [0, 1, 0],
   [0, 0, 1]
 ]
+const cameraPosition = { x: 0, y: 0, z: 0 }
 function viewTransform(p) {
   const [[mxx, mxy, mxz], [myx, myy, myz], [mzx, mzy, mzz]] = viewTransformMatrix
   const { x, y, z, xx, yy, zz, xy, yz, zx } = p
@@ -447,6 +448,10 @@ function updateViewMatrix() {
   viewTransformMatrix[0] = [cos, sin, 0]
   viewTransformMatrix[1] = [-sin*sz, cos*sz, -cz]
   viewTransformMatrix[2] = [-sin*cz, cos*cz, sz]
+
+  cameraPosition.x = +projectionDistance * sin * cz
+  cameraPosition.y = -projectionDistance * cos * cz
+  cameraPosition.z = -projectionDistance * sz
   return angleZ
 }
 
@@ -537,7 +542,7 @@ function draw() {
   const screenspaceParticles = []
   shadow.clear()
   for (const p of particles) {
-    shadow.addDensity(p.y * 0.8, p.z * 0.8, 0.8 * p.x - 0.2 * p.z, 2)
+    shadow.addDensity(p.y * 0.8, p.z * 0.8, p.x * 0.8, 2)
   }
   shadow.calculateBrightness()
 
@@ -546,7 +551,7 @@ function draw() {
     const phase = particlePhase[i] += 0.002
     if (phase < 1) {
       const alpha = phase < 0.1 ? phase * 10 : phase > 0.9 ? (1 - phase) * 10 : 1
-      const brightness = shadow.brightnessAt(p.y * 0.8, p.z * 0.8, 0.8 * p.x - 0.2 * p.z)
+      const brightness = shadow.brightnessAt(p.y * 0.8, p.z * 0.8, p.x * 0.8)
       const accentColor = Math.max(Math.min(0.5 - p.z, 1), 0.2)
       screenspaceParticles.push({ p: viewTransform(p), r: 0.05, a: alpha * 0.5, t: textures[i % textures.length], ca: accentColor, cb: brightness })
     } else {
