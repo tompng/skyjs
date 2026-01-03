@@ -3,6 +3,10 @@ for(let i=0;i<16;i++) {
   textures.push(generateNoiseTexture(64, 64))
 }
 
+function clamp(x, min, max) {
+  return x < min ? min : x > max ? max : x
+}
+
 const noise3da = generateSmoothNoise3D(64, 64, 64, 4, 4, 4)
 const noise3db = generateSmoothNoise3D(64, 64, 64, 3, 3, 3)
 const noise3dc = generateSmoothNoise3D(64, 64, 64, 2, 2, 2)
@@ -72,9 +76,9 @@ class Renderer {
     this.ctx = canvas.getContext('2d')
     this.width = canvas.width
     this.height = canvas.height
-    const size = Math.min(this.width, this.height)
+    this.size = Math.min(this.width, this.height)
     this.ctx.translate(this.width / 2, this.height / 2)
-    this.ctx.scale(size / 2, size / 2)
+    this.ctx.scale(this.size / 2, this.size / 2)
   }
   variant(texture, style) {
     // style: 0: black, 1: accent, 2: white
@@ -82,9 +86,6 @@ class Renderer {
     let variants = this.variantCache.get(texture)
     if (!variants) this.variantCache.set(texture, variants = [])
     if (variants[style]) return variants[style]
-    // const r = Math.round(t * 128 + 128)
-    // const g = Math.round(t * 64 + 128)
-    // const b = Math.round(128)
     const variant = document.createElement('canvas')
     const ctx = variant.getContext('2d')
     variant.width = texture.width
@@ -139,6 +140,71 @@ class Renderer {
     this.ctx.restore()
   }
 
+  renderTriangle(p0, p1, p2, c0, c1, c2) {
+    const cx = (p0.x + p1.x + p2.x) / 3
+    const cy = (p0.y + p1.y + p2.y) / 3
+    const offset = 1 / this.size
+    this.ctx.beginPath()
+    const l1 = Math.hypot(p0.x - cx, p0.y - cy)
+    const l2 = Math.hypot(p1.x - cx, p1.y - cy)
+    const l3 = Math.hypot(p2.x - cx, p2.y - cy)
+    this.ctx.moveTo(p0.x + (p0.x - cx) * offset / l1, p0.y + (p0.y - cy) * offset / l1)
+    this.ctx.lineTo(p1.x + (p1.x - cx) * offset / l2, p1.y + (p1.y - cy) * offset / l2)
+    this.ctx.lineTo(p2.x + (p2.x - cx) * offset / l3, p2.y + (p2.y - cy) * offset / l3)
+    this.ctx.closePath()
+    // color: p1 -> c1, p2 -> c2, p3 -> c3
+    const m00 = p1.x - p0.x
+    const m01 = p1.y - p0.y
+    const m10 = p2.x - p0.x
+    const m11 = p2.y - p0.y
+    const mdet = (m00 * m11 - m01 * m10)
+
+    let vecx = 0, vecy = 0
+    for (let col = 0; col < 3; col++) {
+      const v0 = c1[col] - c0[col]
+      const v1 = c2[col] - c0[col]
+      vecx += (m11 * v0 - m01 * v1) / mdet
+      vecy += (-m10 * v0 + m00 * v1) / mdet
+    }
+    const veclen = Math.hypot(vecx, vecy)
+    vecx /= veclen
+    vecy /= veclen
+    const dot0 = p0.x * vecx + p0.y * vecy
+    const dot1 = p1.x * vecx + p1.y * vecy
+    const dot2 = p2.x * vecx + p2.y * vecy
+    const dotmin = Math.min(dot0, dot1, dot2)
+    const dotmax = Math.max(dot0, dot1, dot2)
+    this.ctx.fillStyle = 'black'
+    const gradient = this.ctx.createLinearGradient(
+      dotmin * vecx, dotmin * vecy,
+      dotmax * vecx, dotmax * vecy
+    )
+    // minimize vertex color difference with least squares
+    // p0color = (cmin*(dotmax - dot0) + (dot0 - dotmin) * cmax) / (dotmax - dotmin)
+    // p2color = (cmin*(dotmax - dot1) + (dot1 - dotmin) * cmax) / (dotmax - dotmin)
+    // p1color = (cmin*(dotmax - dot2) + (dot2 - dotmin) * cmax) / (dotmax - dotmin)
+    // (cmin*(dotmax - dot0) + (dot0 - dotmin) * cmax - (dotmax - dotmin)*c0)**2
+    // 2*cmin*(dotmax - dot0)**2 + (dotmax-dot)(dot0-dotmin)*cmax
+    const n00 = (dotmax - dot0)**2 + (dotmax - dot1)**2 + (dotmax - dot2)**2
+    const n01 = (dot0 - dotmin)*(dotmax - dot0) + (dot1 - dotmin)*(dotmax - dot1) + (dot2 - dotmin)*(dotmax - dot2)
+    const n10 = n01
+    const n11 = (dot0 - dotmin)**2 + (dot1 - dotmin)**2 + (dot2 - dotmin)**2
+    const det = n00 * n11 - n01 * n10
+    const cmin = [
+      (dotmax - dotmin) * (n11 * (c0[0] * (dotmax - dot0) + c1[0] * (dotmax - dot1) + c2[0] * (dotmax - dot2)) - n01 * (c0[0] * (dot0 - dotmin) + c1[0] * (dot1 - dotmin) + c2[0] * (dot2 - dotmin))) / det,
+      (dotmax - dotmin) * (n11 * (c0[1] * (dotmax - dot0) + c1[1] * (dotmax - dot1) + c2[1] * (dotmax - dot2)) - n01 * (c0[1] * (dot0 - dotmin) + c1[1] * (dot1 - dotmin) + c2[1] * (dot2 - dotmin))) / det,
+      (dotmax - dotmin) * (n11 * (c0[2] * (dotmax - dot0) + c1[2] * (dotmax - dot1) + c2[2] * (dotmax - dot2)) - n01 * (c0[2] * (dot0 - dotmin) + c1[2] * (dot1 - dotmin) + c2[2] * (dot2 - dotmin))) / det,
+    ]
+    const cmax = [
+      (dotmax - dotmin) * (-n10 * (c0[0] * (dotmax - dot0) + c1[0] * (dotmax - dot1) + c2[0] * (dotmax - dot2)) + n00 * (c0[0] * (dot0 - dotmin) + c1[0] * (dot1 - dotmin) + c2[0] * (dot2 - dotmin))) / det,
+      (dotmax - dotmin) * (-n10 * (c0[1] * (dotmax - dot0) + c1[1] * (dotmax - dot1) + c2[1] * (dotmax - dot2)) + n00 * (c0[1] * (dot0 - dotmin) + c1[1] * (dot1 - dotmin) + c2[1] * (dot2 - dotmin))) / det,
+      (dotmax - dotmin) * (-n10 * (c0[2] * (dotmax - dot0) + c1[2] * (dotmax - dot1) + c2[2] * (dotmax - dot2)) + n00 * (c0[2] * (dot0 - dotmin) + c1[2] * (dot1 - dotmin) + c2[2] * (dot2 - dotmin))) / det,
+    ]
+    gradient.addColorStop(0, `#${num2hex(clamp(cmin[0], 0, 255))}${num2hex(clamp(cmin[1], 0, 255))}${num2hex(clamp(cmin[2], 0, 255))}`)
+    gradient.addColorStop(1, `#${num2hex(clamp(cmax[0], 0, 255))}${num2hex(clamp(cmax[1], 0, 255))}${num2hex(clamp(cmax[2], 0, 255))}`)
+    this.ctx.fillStyle = gradient
+    this.ctx.fill()
+  }
   clear() {
     this.ctx.clearRect(-1, -1, 2, 2)
   }
@@ -297,6 +363,7 @@ function update() {
 function renderUseXY(p) { return { x: p.x, y: p.y, xx: p.xx, yy: p.yy, xy: p.xy } }
 function renderUseXZ(p) { return { x: p.x, y: p.z, xx: p.xx, yy: p.zz, xy: p.zx } }
 
+const projectionDistance = 2
 const viewTransformMatrix = [
   [1, 0, 0],
   [0, 1, 0],
@@ -305,8 +372,8 @@ const viewTransformMatrix = [
 function viewTransform(p) {
   const [[mxx, mxy, mxz], [myx, myy, myz], [mzx, mzy, mzz]] = viewTransformMatrix
   const { x, y, z, xx, yy, zz, xy, yz, zx } = p
-  const viewZ = 2 + mzx * x + mzy * y + mzz * z
-  const scale = 2 / viewZ
+  const viewZ = mzx * x + mzy * y + mzz * z
+  const scale = projectionDistance / (projectionDistance + viewZ)
   const covScale = scale * scale
   return {
     x: (mxx * x + mxy * y + mxz * z) * scale,
@@ -315,6 +382,58 @@ function viewTransform(p) {
     xx: (mxx * mxx * xx + mxy * mxy * yy + mxz * mxz * zz + 2 * (mxx * mxy * xy + mxy * mxz * yz + mxz * mxx * zx)) * covScale,
     yy: (myx * myx * xx + myy * myy * yy + myz * myz * zz + 2 * (myx * myy * xy + myy * myz * yz + myz * myx * zx)) * covScale,
     xy: (mxx * myx * xx + mxy * myy * yy + mxz * myz * zz + (mxx * myy + mxy * myx) * xy + (mxy * myz + mxz * myy) * yz + (mxz * myx + mxx * myz) * zx) * covScale
+  }
+}
+
+function renderSkySphere() {
+  const lstep = 100
+  const tstep = 100
+  const points = []
+  // precalculation step
+  for(let i = 0; i <= lstep; i++) {
+    const l = Math.PI * i / lstep
+    const lrow = []
+    for (let j = 0; j <= tstep; j++) {
+      const t = 2 * Math.PI * j / tstep
+      const x = Math.cos(l)
+      const y = Math.sin(l) * Math.cos(t)
+      const z = Math.sin(l) * Math.sin(t)
+      const col = [255 * i / lstep, 255 * j / tstep, 255 * (i + j) / (lstep + tstep)]
+      lrow.push({ x, y, z, col })
+    }
+    points.push(lrow)
+  }
+  const zmin = projectionDistance / Math.sqrt(2 + projectionDistance**2) - 0.1
+  function transform(p) {
+    const z = viewTransformMatrix[2][0] * p.x + viewTransformMatrix[2][1] * p.y + viewTransformMatrix[2][2] * p.z
+    if (z < zmin) return
+    return {
+      x: projectionDistance * (viewTransformMatrix[0][0] * p.x + viewTransformMatrix[0][1] * p.y + viewTransformMatrix[0][2] * p.z) / z,
+      y: projectionDistance * (viewTransformMatrix[1][0] * p.x + viewTransformMatrix[1][1] * p.y + viewTransformMatrix[1][2] * p.z) / z,
+      p
+    }
+  }
+  // render step
+  function calculateColor(p) {
+    const t = p.z + 0.2 * p.x + 0.4
+    const rgb = skyColorGradient(t)
+    return rgb
+  }
+
+  for(let i = 0; i < lstep; i++) {
+    for (let j = 0; j < tstep; j++) {
+      const p1 = transform(points[i][j])
+      const p2 = transform(points[i+1][j])
+      const p3 = transform(points[i+1][j+1])
+      const p4 = transform(points[i][j+1])
+      if (!p1 || !p2 || !p3 || !p4) continue
+      if (!p1.col) p1.col = calculateColor(p1.p)
+      if (!p2.col) p2.col = calculateColor(p2.p)
+      if (!p3.col) p3.col = calculateColor(p3.p)
+      if (!p4.col) p4.col = calculateColor(p4.p)
+      if (i != lstep - 1) renderer.renderTriangle(p1, p2, p3, p1.col, p2.col, p3.col)
+      if (i != 0) renderer.renderTriangle(p1, p3, p4, p1.col, p3.col, p4.col)
+    }
   }
 }
 
@@ -335,6 +454,25 @@ function num2hex(n) {
   if (n < 0) return '00'
   if (n > 255) return 'ff'
   return (256 + Math.round(n)).toString(16).substring(1)
+}
+
+function skyColorGradient(t) {
+ const colorStops = [
+    [0, [0xff, 0x88, 0x88]],
+    [0.25, [0xff, 0xdd, 0xaa]],
+    [0.5, [0x87, 0xce, 0xeb]],
+    [0.75, [0x40, 0x60, 0xa0]],
+    [1, [0x20, 0x30, 0x60]]
+  ]
+  const j = t < 0.25 ? 0 : t < 0.5 ? 1 : t < 0.75 ? 2 : 3
+  const [t0, c0] = colorStops[j]
+  const [t1, c1] = colorStops[j + 1]
+  const ft = (t - t0) / (t1 - t0)
+  return [
+    c0[0] * (1 - ft) + c1[0] * ft,
+    c0[1] * (1 - ft) + c1[1] * ft,
+    c0[2] * (1 - ft) + c1[2] * ft
+  ]
 }
 
 function skyColorAngleZ(angleZ) {
@@ -421,6 +559,7 @@ function draw() {
       p.xy = p.yz = p.zx = 0
     }
   }
+  renderSkySphere()
   drawCubeWireframe(+1)
   screenspaceParticles.sort((a, b) => b.p.z - a.p.z).forEach(({ p, r, a, t, ca, cb }) => {
     renderer.renderTexture(p, r, a, t, ca, cb)
