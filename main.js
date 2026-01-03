@@ -416,7 +416,7 @@ function renderSkySphere() {
   }
   // render step
   function calculateColor(p) {
-    const t = p.z + 0.2 * p.x + 0.4
+    const t = (p.z + 0.2 * p.x) * 0.7 + 0.4
     const rgb = skyColorGradient(t)
     return rgb
   }
@@ -463,7 +463,7 @@ function num2hex(n) {
 
 function skyColorGradient(t) {
  const colorStops = [
-    [0, [0xff, 0x88, 0x88]],
+    [0, [0xff, 0x88, 0x77]],
     [0.25, [0xff, 0xdd, 0xaa]],
     [0.5, [0x87, 0xce, 0xeb]],
     [0.75, [0x40, 0x60, 0xa0]],
@@ -478,41 +478,6 @@ function skyColorGradient(t) {
     c0[1] * (1 - ft) + c1[1] * ft,
     c0[2] * (1 - ft) + c1[2] * ft
   ]
-}
-
-function skyColorAngleZ(angleZ) {
-  const colorStops = [
-    [-2, [0x40, 0x60, 0xa0]],
-    [-1, [0x87, 0xce, 0xeb]],
-    [1, [0xff, 0xdd, 0xaa]],
-    [2, [0xff, 0x88, 0x88]]
-  ]
-  const rgbs = []
-  const step = 10
-  for (let i = 0; i < step; i++) {
-    const t = -angleZ + (2 * (i / (step - 1)) - 1)
-    let color
-    if (t <= colorStops[0][0]) {
-      color = colorStops[0][1]
-    } else if (t > colorStops[colorStops.length - 1][0]) {
-      color = colorStops[colorStops.length - 1][1]
-    } else {
-      for (let j = 0; j < colorStops.length - 1; j++) {
-        const [t0, c0] = colorStops[j]
-        const [t1, c1] = colorStops[j + 1]
-        if (t0 <= t && t <= t1) {
-          const ft = (t - t0) / (t1 - t0)
-          color = [
-            c0[0] * (1 - ft) + c1[0] * ft,
-            c0[1] * (1 - ft) + c1[1] * ft,
-            c0[2] * (1 - ft) + c1[2] * ft
-          ]
-        }
-      }
-    }
-    rgbs.push(color)
-  }
-  return `linear-gradient(to bottom, ${rgbs.map(c => `#${num2hex(c[0])}${num2hex(c[1])}${num2hex(c[2])}`).join(', ')})`
 }
 
 function drawCubeWireframe(renderSide) {
@@ -537,8 +502,7 @@ function drawCubeWireframe(renderSide) {
 
 function draw() {
   renderer.clear()
-  const angleZ = updateViewMatrix()
-  canvas.style.background = skyColorAngleZ(angleZ)// 'linear-gradient(to bottom, #87ceeb, #ffddaa)'
+  updateViewMatrix()
   const screenspaceParticles = []
   shadow.clear()
   for (const p of particles) {
